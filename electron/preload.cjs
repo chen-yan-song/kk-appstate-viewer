@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('kkApp', {
   findRootStart: (opts) => ipcRenderer.invoke('find-root-start', opts),
   findRootStop: () => ipcRenderer.invoke('find-root-stop'),
   runAuto: (opts) => ipcRenderer.invoke('run-auto', opts || {}),
+  resolveMedia: (opts) => ipcRenderer.invoke('resolve-media', opts || {}),
 
   onDecryptProgress: (cb) => {
     ipcRenderer.removeAllListeners('decrypt-progress');

@@ -4,6 +4,7 @@
  */
 import { KakaoDB } from './kakaoDb.js';
 import { parseMessage, renderMessageText, messageTypeInfo } from './messageParser.js';
+import { isMediaMessage, loadMessageMedia, mediaFailLabel } from './media.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -473,13 +474,67 @@ function loadMoreMessages() {
   }
 }
 
+async function fillMediaHost(host, m) {
+  try {
+    const frames = await loadMessageMedia(m, { allowCdn: true });
+    if (!host.isConnected) return;
+    host.innerHTML = '';
+    let anyOk = false;
+    for (const f of frames) {
+      if (f.ok && f.objectUrl) {
+        anyOk = true;
+        const mime = f.mime || '';
+        if (mime.startsWith('image/')) {
+          const img = document.createElement('img');
+          img.className = 'msg-media-img';
+          img.src = f.objectUrl;
+          img.alt = f.name || '图片';
+          img.loading = 'lazy';
+          host.appendChild(img);
+        } else if (mime.startsWith('video/')) {
+          const video = document.createElement('video');
+          video.className = 'msg-media-video';
+          video.src = f.objectUrl;
+          video.controls = true;
+          video.preload = 'metadata';
+          host.appendChild(video);
+        } else if (mime.startsWith('audio/')) {
+          const audio = document.createElement('audio');
+          audio.className = 'msg-media-audio';
+          audio.src = f.objectUrl;
+          audio.controls = true;
+          host.appendChild(audio);
+        } else {
+          const a = document.createElement('a');
+          a.className = 'msg-media-file';
+          a.href = f.objectUrl;
+          a.download = f.name || `file-${m.logId}`;
+          a.textContent = `下载 ${f.name || '附件'}（${f.tier}）`;
+          host.appendChild(a);
+        }
+      } else {
+        const tip = document.createElement('div');
+        tip.className = 'msg-media-fail';
+        tip.textContent = mediaFailLabel(f.reason);
+        host.appendChild(tip);
+      }
+    }
+    if (!anyOk && !host.childNodes.length) {
+      host.textContent = '无法获取媒体';
+    }
+  } catch (e) {
+    if (host.isConnected) host.textContent = '媒体加载失败：' + (e.message || e);
+  }
+}
+
 function renderMsgNode(m) {
   const div = document.createElement('div');
   div.className = 'msg-item';
   const info = messageTypeInfo(m.type);
   let text = '';
+  let parsed = null;
   try {
-    const parsed = parseMessage(m.message, m.type, m.attachment);
+    parsed = parseMessage(m.message, m.type, m.attachment);
     text = renderMessageText(parsed, m.type) || parsed.text || '';
   } catch {
     text = typeof m.message === 'string' ? m.message : '[无法解析]';
@@ -487,10 +542,30 @@ function renderMsgNode(m) {
   const when = m.sentAt
     ? new Date(Number(m.sentAt) * (String(m.sentAt).length > 11 ? 1 : 1000)).toLocaleString()
     : '';
-  div.innerHTML = `
-    <div class="msg-meta">${escapeHtml(info.emoji || '')} ${escapeHtml(info.label || '')}
-      · ${escapeHtml(String(m.authorId ?? ''))} · ${escapeHtml(when)}</div>
-    <div class="msg-body">${escapeHtml(text)}</div>`;
+  const meta = document.createElement('div');
+  meta.className = 'msg-meta';
+  meta.textContent = `${info.emoji || ''} ${info.label || ''} · ${m.authorId ?? ''} · ${when}`;
+  div.appendChild(meta);
+
+  const body = document.createElement('div');
+  body.className = 'msg-body';
+  if (text) body.textContent = text;
+  div.appendChild(body);
+
+  if (parsed && parsed.kind === 'attachment' && parsed.detail && !isMediaMessage(m.type)) {
+    const detail = document.createElement('div');
+    detail.className = 'msg-detail';
+    detail.textContent = parsed.detail;
+    div.appendChild(detail);
+  }
+
+  if (isMediaMessage(m.type)) {
+    const mediaHost = document.createElement('div');
+    mediaHost.className = 'msg-media';
+    mediaHost.textContent = '媒体加载中…';
+    div.appendChild(mediaHost);
+    fillMediaHost(mediaHost, m);
+  }
   return div;
 }
 

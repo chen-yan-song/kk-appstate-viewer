@@ -14,6 +14,7 @@ const discover = require('./discover.cjs');
 const sqlcipherPage = require('./sqlcipherPage.cjs');
 const keyLocate = require('./keyLocate.cjs');
 const findRoot = require('./findRoot.cjs');
+const kakaoMedia = require('./media.cjs');
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -382,6 +383,14 @@ ipcMain.handle('find-root-start', async (_e, opts) => {
   }
 });
 
+ipcMain.handle('resolve-media', async (_e, opts) => {
+  try {
+    return await kakaoMedia.resolveMedia(opts || {});
+  } catch (e) {
+    return { frames: [{ ok: false, tier: 'stub', reason: errText(e) }] };
+  }
+});
+
 ipcMain.handle('find-root-stop', () => {
   if (!findRootChild) return { ok: true, stopped: false };
   try {
@@ -451,9 +460,17 @@ ipcMain.handle('run-auto', async (_e, opts = {}) => {
       const running = await discover.isKakaoTalkRunning();
       if (running.running) {
         progress('findroot', 'active', 'KakaoTalk 运行中，开始内存搜索根钥 R（可能需要数分钟）…');
-        const fr = await findRoot.findRootInRunningKakao(st, { step: 4, probeCount: 3 }, (p) => {
-          progress('findroot', 'active', `[${p.stage}] ${p.detail}`);
-        });
+        const knownDekBytes = Object.values(keyMap)
+          .filter((h) => /^[0-9a-fA-F]{64}$/.test(h))
+          .slice(0, 80)
+          .map((h) => Buffer.from(h, 'hex'));
+        const fr = await findRoot.findRootInRunningKakao(
+          st,
+          { step: 4, probeCount: 3, knownDekBytes, nearRadius: 2 * 1024 * 1024 },
+          (p) => {
+            progress('findroot', 'active', `[${p.stage}] ${p.detail}`);
+          }
+        );
         if (!fr.ok) {
           progress('findroot', 'fail', fr.reason || '未找到 R');
           if (!Object.keys(keyMap).length) {

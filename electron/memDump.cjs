@@ -1,6 +1,7 @@
 'use strict';
 /**
- * Windows：导出 KakaoTalk 进程已提交可读私有内存（PowerShell P/Invoke）
+ * Windows：导出 KakaoTalk 进程已提交内存（PowerShell P/Invoke）
+ * 结构体布局对齐 kakao-chat-viewer 已验证脚本（RegionSize 用 IntPtr，避免 UIntPtr 强转失败）
  */
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -9,49 +10,62 @@ const path = require('path');
 
 function writeDumpScript(dir) {
   const ps1 = path.join(dir, 'kk-asv-memdump.ps1');
-  const script = `
-param([Parameter(Mandatory)]$TargetPid,[Parameter(Mandatory)]$OutFile,[switch]$PrivateOnly)
-$ErrorActionPreference = 'Stop'
-Add-Type @"
+  // 注意：无中文注释；必须带 UTF-8 BOM，避免 PS5.1 按 ANSI 误解析
+  const script = String.raw`
+param([int]$TargetPid, [string]$OutFile, [switch]$PrivateOnly)
+$sig = @"
 using System;
 using System.Runtime.InteropServices;
-public class KkvMem2 {
-  [DllImport("kernel32.dll", SetLastError=true)] public static extern IntPtr OpenProcess(uint a,bool b,int p);
-  [DllImport("kernel32.dll", SetLastError=true)] public static extern bool CloseHandle(IntPtr h);
-  [DllImport("kernel32.dll", SetLastError=true)] public static extern int VirtualQueryEx(IntPtr h,IntPtr a,out MEMORY_BASIC_INFORMATION m,uint s);
-  [DllImport("kernel32.dll", SetLastError=true)] public static extern bool ReadProcessMemory(IntPtr h,IntPtr a,byte[] b,int n,ref int r);
-  [StructLayout(LayoutKind.Sequential)] public struct MEMORY_BASIC_INFORMATION {
-    public IntPtr BaseAddress; public IntPtr AllocationBase; public uint AllocationProtect;
-    public UIntPtr RegionSize; public uint State; public uint Protect; public uint Type;
+public class KkvMemAsv {
+  [DllImport("kernel32.dll", SetLastError=true)]
+  public static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+  [DllImport("kernel32.dll", SetLastError=true)]
+  public static extern bool CloseHandle(IntPtr h);
+  [DllImport("kernel32.dll", SetLastError=true)]
+  public static extern bool ReadProcessMemory(IntPtr h, IntPtr addr, byte[] buf, int size, out int read);
+  [DllImport("kernel32.dll", SetLastError=true)]
+  public static extern IntPtr VirtualQueryEx(IntPtr h, IntPtr addr, out MEMORY_BASIC_INFORMATION info, int len);
+  [StructLayout(LayoutKind.Sequential)]
+  public struct MEMORY_BASIC_INFORMATION {
+    public IntPtr BaseAddress;
+    public IntPtr AllocationBase;
+    public uint AllocationProtect;
+    public IntPtr RegionSize;
+    public uint State;
+    public uint Protect;
+    public uint Type;
   }
 }
 "@
-$h = [KkvMem2]::OpenProcess(0x0410, $false, [int]$TargetPid) # QUERY_INFORMATION|VM_READ
-if ($h -eq [IntPtr]::Zero) { throw "OpenProcess failed pid=$TargetPid err=$([Runtime.InteropServices.Marshal]::GetLastWin32Error())" }
-$fs = [IO.File]::Create($OutFile)
-$buf = New-Object byte[] 1048576
+Add-Type -TypeDefinition $sig
+$h = [KkvMemAsv]::OpenProcess(0x0410, $false, $TargetPid)
+if ($h -eq [IntPtr]::Zero) { Write-Error ("OpenProcess failed pid=" + $TargetPid); exit 1 }
+$buf = New-Object byte[] 16777216
+$read = 0
 $addr = [IntPtr]::Zero
-$commit=0; $matched=0; $totalBytes=0
+$commitCount = 0
+$matchedCount = 0
+$totalBytes = [long]0
+$fs = [System.IO.File]::Create($OutFile)
 try {
   while ($true) {
-    $mbi = New-Object KkvMem2+MEMORY_BASIC_INFORMATION
-    $ret = [KkvMem2]::VirtualQueryEx($h, $addr, [ref]$mbi, [uint32][Runtime.InteropServices.Marshal]::SizeOf($mbi))
-    if ($ret -eq 0) { break }
+    $mbi = New-Object KkvMemAsv+MEMORY_BASIC_INFORMATION
+    $ret = [KkvMemAsv]::VirtualQueryEx($h, $addr, [ref]$mbi, [Runtime.InteropServices.Marshal]::SizeOf($mbi))
+    if ($ret -eq [IntPtr]::Zero) { break }
     $region = [int64]$mbi.RegionSize
     if ($region -le 0) { break }
     if ($mbi.State -eq 0x1000 -and $region -le 268435456) {
-      $commit++
+      $commitCount++
       $prot = [int]$mbi.Protect
       $readable = (($prot -band 0xEE) -ne 0) -and (($prot -band 0x100) -eq 0) -and ($prot -ne 1)
-      $privateOk = (-not $PrivateOnly) -or ($mbi.Type -eq 0x20000)
+      $privateOk = (-not $PrivateOnly) -or ($mbi.Type -eq 0x20000) -or ($mbi.Type -eq 0)
       if ($readable -and $privateOk) {
-        $matched++
+        $matchedCount++
         $remain = $region
         $cur = [int64]$mbi.BaseAddress
         while ($remain -gt 0) {
           $take = [int][Math]::Min($remain, $buf.Length)
-          $read = 0
-          $ok = [KkvMem2]::ReadProcessMemory($h, [IntPtr]$cur, $buf, $take, [ref]$read)
+          $ok = [KkvMemAsv]::ReadProcessMemory($h, [IntPtr]$cur, $buf, $take, [ref]$read)
           if ($ok -and $read -gt 0) { $fs.Write($buf, 0, $read); $totalBytes += $read }
           $cur += $take
           $remain -= $take
@@ -64,9 +78,9 @@ try {
   }
 } finally {
   $fs.Close()
-  [void][KkvMem2]::CloseHandle($h)
+  [void][KkvMemAsv]::CloseHandle($h)
 }
-Write-Output ("DUMPSTATS commit=$commit matched=$matched bytes=$totalBytes")
+Write-Output ("DUMPSTATS commit=$commitCount matched=$matchedCount bytes=$totalBytes")
 `;
   fs.writeFileSync(ps1, '\ufeff' + script, 'utf8');
   return ps1;
@@ -77,7 +91,10 @@ function dumpProcessMemory(pid, timeoutMs = 300000, { privateOnly = true } = {})
     const dumpPath = path.join(os.tmpdir(), `kk-asv-mem-${pid}${privateOnly ? '-p' : ''}.dmp`);
     try { if (fs.existsSync(dumpPath)) fs.unlinkSync(dumpPath); } catch { /* ignore */ }
     const ps1 = writeDumpScript(os.tmpdir());
-    const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps1, '-TargetPid', String(pid), '-OutFile', dumpPath];
+    const args = [
+      '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps1,
+      '-TargetPid', String(pid), '-OutFile', dumpPath,
+    ];
     if (privateOnly) args.push('-PrivateOnly');
     const child = spawn('powershell.exe', args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     const out = [];
