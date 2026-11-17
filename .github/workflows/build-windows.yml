@@ -1,0 +1,62 @@
+name: 打包 Windows 便携版
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: 安装依赖
+        run: npm install
+
+      - name: 加密自检
+        run: npm run test:crypto
+
+      - name: 打包便携 exe
+        run: npx electron-builder --win portable --publish never
+
+      - name: 列出产物
+        run: Get-ChildItem -Recurse release | Select-Object FullName, Length
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: kk-appstate-viewer-windows-portable
+          path: |
+            release/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: 发布 GitHub Release（仅手动/推送时覆盖 latest 附件）
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -e
+          EXE=$(ls release/*.exe | head -n 1)
+          echo "产物: $EXE"
+          # 删除旧的 continuous 标签发布（若有）
+          gh release delete continuous --yes 2>/dev/null || true
+          git tag -f continuous
+          git push -f origin continuous 2>/dev/null || true
+          gh release create continuous "$EXE" \
+            --title "KK AppState Viewer（Windows 便携版）" \
+            --notes "免安装便携包。下载后直接双击运行。若杀软拦截请加白名单。" \
+            --latest || \
+          gh release upload continuous "$EXE" --clobber

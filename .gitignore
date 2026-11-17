@@ -1,0 +1,9 @@
+node_modules/
+release/
+dist/
+.DS_Store
+*.log
+kk-root-key.json
+kk-unwrapped-keys.json
+bin/*.exe
+package-lock.json.bak

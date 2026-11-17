@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KK AppState Viewer</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/viewer-extra.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-ball">🔑</span>
+        <div>
+          <h1>KK AppState Viewer</h1>
+          <p id="subtitle">Windows 全自动：发现账号 → 取根钥 → 解包 DEK → 解密浏览</p>
+        </div>
+      </div>
+      <span class="privacy-badge"><span class="dot"></span> 100% 本地处理</span>
+    </div>
+  </header>
+
+  <div id="pageError" class="page-error" hidden role="alert">
+    <div class="page-error-inner">
+      <strong>出错了</strong>
+      <pre id="pageErrorText"></pre>
+      <button id="pageErrorClose" class="btn btn-plain" type="button">关闭</button>
+    </div>
+  </div>
+
+  <main class="container">
+    <!-- 全自动面板（默认） -->
+    <section id="autoPanel" class="card auto-panel">
+      <h2>正在自动读取本机 KakaoTalk 聊天记录</h2>
+      <p class="hint">启动后自动执行；失败时错误会显示在页面顶部，并可切换手动模式。</p>
+      <ol id="autoSteps" class="auto-steps">
+        <li data-step="account" class="auto-step">
+          <span class="step-title">① 发现账号</span>
+          <span class="step-detail"></span>
+        </li>
+        <li data-step="appstate" class="auto-step">
+          <span class="step-title">② 解析 appstate</span>
+          <span class="step-detail"></span>
+        </li>
+        <li data-step="keys" class="auto-step">
+          <span class="step-title">③ 查找已有根钥/DEK</span>
+          <span class="step-detail"></span>
+        </li>
+        <li data-step="findroot" class="auto-step">
+          <span class="step-title">④ 内存搜索根钥 R</span>
+          <span class="step-detail"></span>
+        </li>
+        <li data-step="unwrap" class="auto-step">
+          <span class="step-title">⑤ 解包全部 DEK</span>
+          <span class="step-detail"></span>
+        </li>
+        <li data-step="decrypt" class="auto-step">
+          <span class="step-title">⑥ 解密并打开聊天</span>
+          <span class="step-detail"></span>
+        </li>
+      </ol>
+      <div class="auto-progress"><div class="progress-bar indeterminate" id="autoProgressBar"></div></div>
+      <ul id="warnList" class="warn-list" hidden></ul>
+      <div class="row-actions">
+        <button id="btnAutoRetry" class="btn btn-yellow" type="button">重新自动</button>
+        <button id="btnAutoContinue" class="btn btn-yellow" type="button" hidden>我已退出 KakaoTalk，继续</button>
+        <button id="btnShowManual" class="btn btn-plain" type="button">使用手动模式</button>
+      </div>
+    </section>
+
+    <!-- 手动兜底 -->
+    <section id="setup" class="setup-panel" hidden>
+      <div class="card">
+        <h2>手动模式</h2>
+        <div class="row-actions">
+          <button id="btnBackAuto" class="btn btn-plain" type="button">← 返回自动流程</button>
+          <button id="btnDiscover" class="btn btn-yellow" type="button">重新扫描账号</button>
+          <button id="btnSelftest" class="btn btn-plain" type="button">加密自检</button>
+          <span id="discoverMeta" class="meta"></span>
+        </div>
+        <ul id="accountList" class="account-list"></ul>
+        <p id="accountEmpty" class="empty-hint" hidden>未发现账号。</p>
+      </div>
+
+      <div class="card">
+        <h2>提供根钥 R 或 DEK</h2>
+        <label class="field-label" for="rootInput">根钥 R（64 位十六进制）</label>
+        <input id="rootInput" type="text" spellcheck="false" autocomplete="off"
+               placeholder="例如 a1b2c3…（64 个 hex 字符）" />
+        <div class="row-actions">
+          <button id="btnImportRootJson" class="btn btn-plain" type="button">导入 kk-root-key.json</button>
+          <button id="btnImportKeysJson" class="btn btn-plain" type="button">导入 keys / win-key-cache.json</button>
+          <button id="btnFindRoot" class="btn btn-plain" type="button">内存搜索 R</button>
+          <button id="btnStopFindRoot" class="btn btn-plain" type="button" hidden>停止搜索</button>
+        </div>
+        <p id="keyStatus" class="meta"></p>
+        <pre id="findRootLog" class="log-box" hidden></pre>
+      </div>
+
+      <div class="card">
+        <div class="row-actions">
+          <button id="btnDecrypt" class="btn btn-yellow btn-lg" type="button" disabled>解密并加载聊天记录</button>
+        </div>
+        <div id="progressArea" class="progress-area" hidden>
+          <p id="progressText">准备中…</p>
+          <div class="progress"><div class="progress-bar indeterminate" id="progressBar"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="viewer" hidden>
+      <div class="viewer-toolbar">
+        <button id="btnBack" class="btn btn-plain" type="button">← 返回</button>
+        <span id="viewerStats" class="meta"></span>
+      </div>
+      <div class="viewer-wrap">
+        <aside class="sidebar">
+          <div class="search-box">
+            <input id="chatSearch" type="text" placeholder="搜索消息（回车）" spellcheck="false" />
+            <button id="searchBtn" type="button" title="搜索">🔍</button>
+          </div>
+          <div id="statsBar" class="stats-bar"></div>
+          <ul id="chatList" class="chat-list"></ul>
+        </aside>
+        <div class="chat-pane">
+          <div class="chat-header">
+            <div>
+              <h3 id="chatTitle">选择一个聊天室</h3>
+              <p id="chatMeta"></p>
+            </div>
+          </div>
+          <div id="msgList" class="msg-list">
+            <div id="msgEmpty" class="msg-empty">👈 从左侧选择聊天室</div>
+          </div>
+          <button id="loadMoreBtn" class="btn btn-plain load-more" type="button" hidden>加载更早的消息 ↑</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>全自动优先；数据不出本机。</p>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

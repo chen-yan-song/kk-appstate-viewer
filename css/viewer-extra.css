@@ -1,0 +1,191 @@
+/* kk-appstate-viewer 额外样式：全局错误条与设置页 */
+
+.auto-panel { margin-bottom: 16px; }
+.auto-steps {
+  list-style: none;
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.auto-step {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line, #e6e6e3);
+  background: #fff;
+  align-items: start;
+}
+.auto-step .step-title { font-weight: 700; font-size: 13px; }
+.auto-step .step-detail {
+  font-size: 12px;
+  color: var(--ink-soft, #555);
+  word-break: break-word;
+}
+.auto-step.active {
+  border-color: #c9b100;
+  background: #fffceb;
+}
+.auto-step.ok {
+  border-color: #8fd19e;
+  background: #f3fff6;
+}
+.auto-step.fail {
+  border-color: #e5484d;
+  background: #fff1f0;
+}
+.auto-progress {
+  height: 6px;
+  background: #eee;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 8px 0 14px;
+}
+.auto-progress .progress-bar {
+  height: 100%;
+  background: var(--kakao-yellow, #fee500);
+}
+
+.page-error {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: #fff1f0;
+  border-bottom: 2px solid var(--danger, #e5484d);
+  padding: 12px 24px;
+}
+.page-error-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: start;
+}
+.page-error strong {
+  color: var(--danger, #e5484d);
+  padding-top: 2px;
+}
+.page-error pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: #5c1a1a;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.setup-panel .card { margin-bottom: 16px; }
+.hint { color: var(--ink-soft, #555); font-size: 13px; margin: 6px 0 12px; }
+.hint code {
+  background: #f0f0ec;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0;
+}
+.meta { font-size: 12px; color: var(--ink-soft, #555); }
+.empty-hint { color: var(--ink-soft); padding: 12px 0; }
+
+.account-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.account-list li {
+  border: 1px solid var(--line, #e6e6e3);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  background: #fff;
+}
+.account-list li:hover { border-color: #ccc; }
+.account-list li.active {
+  border-color: #191919;
+  box-shadow: 0 0 0 2px rgba(254, 229, 0, 0.85);
+}
+.account-list .acc-id { font-weight: 700; font-family: ui-monospace, monospace; font-size: 13px; }
+.account-list .acc-meta { font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+
+#rootInput {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+.log-box {
+  margin-top: 10px;
+  background: #191919;
+  color: #d6ffd6;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 11px;
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.warn-list {
+  list-style: none;
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.warn-list li {
+  background: #fff8e6;
+  border: 1px solid #f0d78c;
+  color: #6b4e00;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.viewer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.progress-area { margin-top: 12px; }
+.progress-bar.indeterminate {
+  width: 40%;
+  animation: slide 1.2s ease-in-out infinite;
+}
+@keyframes slide {
+  0% { transform: translateX(0); }
+  50% { transform: translateX(150%); }
+  100% { transform: translateX(0); }
+}
+
+.chat-list li {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line, #e6e6e3);
+  cursor: pointer;
+}
+.chat-list li:hover { background: #fafaf8; }
+.chat-list .chat-name { font-weight: 600; font-size: 13px; }
+.chat-list .chat-sub { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+
+.msg-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f0f0ec;
+}
+.msg-meta { font-size: 11px; color: var(--ink-soft); margin-bottom: 4px; }
+.msg-body { font-size: 14px; white-space: pre-wrap; word-break: break-word; }
