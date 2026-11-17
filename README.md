@@ -22,22 +22,22 @@ npm start
 
 ### 全自动流程（默认）
 
-启动后自动执行：
+与产品约定一致：**一次拿到运行时根钥 R → 从 appstate 解包全部 DEK → 解密浏览**。
 
 1. 发现账号（取 appstate 最大的）
 2. 解析 `appstate.dat`
-3. 在桌面 / 缓存 / ProgramData 等位置查找 `kk-root-key.json`、`win-key-cache.json`
-4. 若没有 R 且 KakaoTalk **正在运行** → 内存搜索根钥 R（可能数分钟）
-5. 用 R 解包全部 DEK
+3. 仅检查本工具自己保存的 `kk-root-key.json`（**不读 kk-collect / win-key-cache**）
+4. 若无 R 且 KakaoTalk **正在运行** → 内存搜索 R
+5. 用 R 解包全部 DEK（失败则整流程失败，不会退回历史 DEK）
 6. 解密本地 EDB 并进入聊天浏览
 
 注意：
 
 - **搜 R 需要 KakaoTalk 登录运行**；**解密文件建议退出 KakaoTalk**（否则可能全零/被锁）
-- 若解密因占用失败，页面会出「我已退出 KakaoTalk，继续」按钮，点一次即可续跑（不必重搜 R）
+- 若解密因占用失败，页面会出「我已退出，继续」（沿用本次已解出的 DEK，仍不是 kk-collect 缓存）
 - 任何失败都会显示在页面顶部红色错误条
 
-手动模式仅作兜底（导入 JSON / 粘贴 R）。
+手动模式仅作兜底（粘贴 / 导入本工具的 `kk-root-key.json`）。
 
 ## 开发自检
 

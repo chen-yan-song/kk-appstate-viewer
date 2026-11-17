@@ -441,90 +441,66 @@ ipcMain.handle('run-auto', async (_e, opts = {}) => {
     }
     progress('appstate', 'ok', `prefix=${st.infoPrefixText} · 条目 ${st.entryCount}（chatLogs ${st.chatlogCount}）`);
 
-    progress('keys', 'active', '在桌面/缓存目录自动查找根钥与 DEK…');
+    // 产品路径：只认本工具保存的 R；绝不读取 kk-collect / win-key-cache
+    progress('keys', 'active', '检查本工具是否已保存根钥 R（不读 kk-collect）…');
     const located = keyLocate.locateKeys(app.getPath('userData'));
     let rootHex = located.rootHex || null;
-    let keyMap = { ...(located.keys || {}) };
-    if (located.ok) {
-      progress(
-        'keys',
-        'ok',
-        `${rootHex ? '已找到 R' : '无 R'} · DEK ${Object.keys(keyMap).length} · 来自 ${located.files.slice(0, 2).join('；') || '缓存'}`
-      );
+    if (located.ok && rootHex) {
+      progress('keys', 'ok', `已找到本工具保存的 R · ${located.files[0] || ''}`);
     } else {
-      progress('keys', 'active', located.reason || '未找到现成密钥文件');
+      progress('keys', 'ok', located.reason || '尚无本工具保存的 R，将尝试内存搜索');
     }
 
-    // 缺 R：若 KakaoTalk 在跑则内存搜索
     if (!rootHex && !opts.skipFindRoot) {
       const running = await discover.isKakaoTalkRunning();
-      if (running.running) {
-        progress('findroot', 'active', 'KakaoTalk 运行中，开始内存搜索根钥 R（可能需要数分钟）…');
-        const knownDekBytes = Object.values(keyMap)
-          .filter((h) => /^[0-9a-fA-F]{64}$/.test(h))
-          .slice(0, 80)
-          .map((h) => Buffer.from(h, 'hex'));
-        const fr = await findRoot.findRootInRunningKakao(
-          st,
-          { step: 4, probeCount: 3, knownDekBytes, nearRadius: 2 * 1024 * 1024 },
-          (p) => {
-            progress('findroot', 'active', `[${p.stage}] ${p.detail}`);
-          }
-        );
-        if (!fr.ok) {
-          progress('findroot', 'fail', fr.reason || '未找到 R');
-          if (!Object.keys(keyMap).length) {
-            return {
-              ok: false,
-              reason: fr.reason || '内存中未找到根钥，且磁盘上也没有可用 DEK',
-              step: 'findroot',
-              needManualRoot: true,
-            };
-          }
-          progress('findroot', 'fail', `${fr.reason}；将尝试仅用已有 DEK 继续`);
-        } else {
-          rootHex = fr.rootHex;
-          const saved = keyLocate.saveRootKey(app.getPath('userData'), rootHex, {
-            dump_offset: fr.dumpOffset,
-            checked: fr.checked,
-          });
-          progress('findroot', 'ok', `命中 R，已保存 ${saved}`);
-        }
-      } else if (!Object.keys(keyMap).length) {
-        progress('findroot', 'fail', '无现成密钥，且 KakaoTalk 未运行，无法搜 R');
+      if (!running.running) {
+        progress('findroot', 'fail', 'KakaoTalk 未运行，无法内存搜索 R');
         return {
           ok: false,
-          reason: '没有可用密钥。请先启动并登录 KakaoTalk 后点「重新自动」，或手动粘贴 root_hex',
+          reason: '需要先登录并保持 KakaoTalk 运行，以便内存搜索根钥 R。本工具不使用 kk-collect 历史 DEK。',
           step: 'findroot',
           needKakaoRunning: true,
           needManualRoot: true,
         };
-      } else {
-        progress('findroot', 'ok', '跳过内存搜钥（已有 DEK 缓存）');
       }
-    } else if (rootHex) {
-      progress('findroot', 'ok', '已有根钥，跳过内存搜索');
-    }
-
-    if (rootHex) {
-      progress('unwrap', 'active', '用 R 解包全部 DEK…');
-      const un = appstate.unwrapAll(st, appstate.parseRootHex(rootHex));
-      if (!un.ok) {
-        progress('unwrap', 'fail', `解包失败 fail=${un.fail}`);
-        if (!Object.keys(keyMap).length) {
-          return { ok: false, reason: `根钥无法解包任何 DEK（fail=${un.fail}）`, step: 'unwrap' };
+      progress('findroot', 'active', 'KakaoTalk 运行中，内存搜索根钥 R（可能需要数分钟～二十分钟）…');
+      const fr = await findRoot.findRootInRunningKakao(
+        st,
+        { step: 4, probeCount: 3 },
+        (p) => {
+          progress('findroot', 'active', `[${p.stage}] ${p.detail}`);
         }
-      } else {
-        keyMap = { ...keyMap, ...un.keys };
-        progress('unwrap', 'ok', `解包成功 ${un.ok} 条（失败 ${un.fail}）`);
+      );
+      if (!fr.ok) {
+        progress('findroot', 'fail', fr.reason || '未找到 R');
+        return {
+          ok: false,
+          reason: fr.reason || '内存中未找到根钥 R。请保持 KakaoTalk 登录后重试，或手动粘贴 root_hex。',
+          step: 'findroot',
+          needManualRoot: true,
+        };
       }
+      rootHex = fr.rootHex;
+      const saved = keyLocate.saveRootKey(app.getPath('userData'), rootHex, {
+        dump_offset: fr.dumpOffset,
+        checked: fr.checked,
+      });
+      progress('findroot', 'ok', `命中 R，已保存 ${saved}`);
+    } else if (rootHex) {
+      progress('findroot', 'ok', '已有本工具保存的根钥，跳过内存搜索');
     } else {
-      progress('unwrap', 'ok', `使用已有 DEK ${Object.keys(keyMap).length} 条`);
+      progress('findroot', 'fail', '无根钥且跳过了内存搜索');
+      return { ok: false, reason: '缺少根钥 R', step: 'findroot', needManualRoot: true };
     }
 
-    if (!Object.keys(keyMap).length) {
-      return { ok: false, reason: '解包后仍无可用 DEK', step: 'unwrap' };
+    progress('unwrap', 'active', '用 R 从 appstate 解包全部 DEK…');
+    const un = appstate.unwrapAll(st, appstate.parseRootHex(rootHex));
+    if (!un.ok) {
+      progress('unwrap', 'fail', `解包失败 fail=${un.fail}`);
+      return { ok: false, reason: `根钥无法解包任何 DEK（fail=${un.fail}）`, step: 'unwrap' };
     }
+    const keyMap = { ...un.keys };
+    progress('unwrap', 'ok', `解包成功 ${un.ok} 条（失败 ${un.fail}）`);
 
     progress('decrypt', 'active', '解密本地 EDB…');
     const running = await discover.isKakaoTalkRunning();

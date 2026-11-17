@@ -25,7 +25,6 @@ const el = {
   accountEmpty: $('accountEmpty'),
   rootInput: $('rootInput'),
   btnImportRootJson: $('btnImportRootJson'),
-  btnImportKeysJson: $('btnImportKeysJson'),
   btnFindRoot: $('btnFindRoot'),
   btnStopFindRoot: $('btnStopFindRoot'),
   keyStatus: $('keyStatus'),
@@ -617,7 +616,6 @@ el.rootInput.addEventListener('input', () => {
   updateDecryptEnabled();
 });
 el.btnImportRootJson.addEventListener('click', () => importJsonFile());
-el.btnImportKeysJson.addEventListener('click', () => importJsonFile());
 el.btnFindRoot.addEventListener('click', () => startFindRoot());
 el.btnStopFindRoot.addEventListener('click', async () => {
   try {

@@ -33,7 +33,8 @@
     <!-- 全自动面板（默认） -->
     <section id="autoPanel" class="card auto-panel">
       <h2>正在自动读取本机 KakaoTalk 聊天记录</h2>
-      <p class="hint">启动后自动执行；失败时错误会显示在页面顶部，并可切换手动模式。</p>
+      <p class="hint">路径：发现账号 → 解析 appstate → <b>内存取根钥 R</b> → 解包全部 DEK → 解密浏览。<br/>
+        <b>不使用</b> kk-collect / win-key-cache 历史数据。失败会显示在页面顶部。</p>
       <ol id="autoSteps" class="auto-steps">
         <li data-step="account" class="auto-step">
           <span class="step-title">① 发现账号</span>
@@ -44,7 +45,7 @@
           <span class="step-detail"></span>
         </li>
         <li data-step="keys" class="auto-step">
-          <span class="step-title">③ 查找已有根钥/DEK</span>
+          <span class="step-title">③ 检查本工具已保存的 R</span>
           <span class="step-detail"></span>
         </li>
         <li data-step="findroot" class="auto-step">
@@ -52,7 +53,7 @@
           <span class="step-detail"></span>
         </li>
         <li data-step="unwrap" class="auto-step">
-          <span class="step-title">⑤ 解包全部 DEK</span>
+          <span class="step-title">⑤ 用 R 解包全部 DEK</span>
           <span class="step-detail"></span>
         </li>
         <li data-step="decrypt" class="auto-step">
@@ -84,13 +85,13 @@
       </div>
 
       <div class="card">
-        <h2>提供根钥 R 或 DEK</h2>
+        <h2>提供根钥 R（本工具路径）</h2>
+        <p class="hint">请粘贴 / 导入本工具写出的 <code>kk-root-key.json</code>。<b>不要</b>导入 kk-collect 的 win-key-cache。</p>
         <label class="field-label" for="rootInput">根钥 R（64 位十六进制）</label>
         <input id="rootInput" type="text" spellcheck="false" autocomplete="off"
                placeholder="例如 a1b2c3…（64 个 hex 字符）" />
         <div class="row-actions">
           <button id="btnImportRootJson" class="btn btn-plain" type="button">导入 kk-root-key.json</button>
-          <button id="btnImportKeysJson" class="btn btn-plain" type="button">导入 keys / win-key-cache.json</button>
           <button id="btnFindRoot" class="btn btn-plain" type="button">内存搜索 R</button>
           <button id="btnStopFindRoot" class="btn btn-plain" type="button" hidden>停止搜索</button>
         </div>
